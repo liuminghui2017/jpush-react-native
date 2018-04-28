@@ -422,25 +422,42 @@ export default class JPush {
    * 监听：点击推送事件
    * @param {Function} cb  = (Object）=> {}
    */
-  static addReceiveOpenNotificationListener (cb) {
-    listeners[cb] = DeviceEventEmitter.addListener(
-      openNotificationEvent,
-      message => {
-        cb(message)
-      }
-    )
+  static addReceiveOpenNotificationListener(cb, handleName) {
+    if (handleName) {
+      listeners[handleName] = DeviceEventEmitter.addListener(
+        openNotificationEvent,
+        message => {
+          cb(message)
+        }
+      )
+    } else {
+      listeners[cb] = DeviceEventEmitter.addListener(
+        openNotificationEvent,
+        message => {
+          cb(message)
+        }
+      )
+    }
   }
 
   /**
    * 取消监听：点击推送事件
    * @param {Function} cb  = (Object）=> {}
    */
-  static removeReceiveOpenNotificationListener (cb) {
-    if (!listeners[cb]) {
-      return
+  static removeReceiveOpenNotificationListener(cb, handleName) {
+    if (handleName) {
+      if (!listeners[handleName]) {
+        return
+      }
+      listeners[handleName].remove()
+      listeners[handleName] = null
+    } else {
+      if (!listeners[cb]) {
+        return
+      }
+      listeners[cb].remove()
+      listeners[cb] = null
     }
-    listeners[cb].remove()
-    listeners[cb] = null
   }
 
   /**
