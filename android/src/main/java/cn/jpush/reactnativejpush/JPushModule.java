@@ -2,12 +2,18 @@ package cn.jpush.reactnativejpush;
 
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.net.Uri;
+import android.os.Vibrator;
 import android.app.Notification;
+import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.support.v4.app.NotificationCompat;
 import android.util.SparseArray;
 
 import com.facebook.react.bridge.Arguments;
@@ -503,6 +509,7 @@ public class JPushModule extends ReactContextBaseJavaModule {
         @Override
         public void onReceive(Context context, Intent data) {
             mCachedBundle = data.getExtras();
+            Vibrator vibrator = (Vibrator)context.getSystemService(Service.VIBRATOR_SERVICE);
             if (JPushInterface.ACTION_MESSAGE_RECEIVED.equals(data.getAction())) {
                 try {
                     String message = data.getStringExtra(JPushInterface.EXTRA_MESSAGE);
@@ -526,6 +533,9 @@ public class JPushModule extends ReactContextBaseJavaModule {
                     if (mRAC != null) {
                         sendEvent();
                     }
+                    if (isApplicationRunningBackground(context)) {
+                        processCustomNotification(context, data.getExtras(), vibrator);
+                    }                   
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -548,9 +558,11 @@ public class JPushModule extends ReactContextBaseJavaModule {
                     intent.putExtras(mCachedBundle);
                     context.startActivity(intent);
                     mEvent = OPEN_NOTIFICATION;
+                    JPushInterface.clearNotificationById(context, mCachedBundle.getInt(JPushInterface.EXTRA_NOTIFICATION_ID));
                     if (mRAC != null) {
                         sendEvent();
                     }
+                    vibrator.cancel();
                 } catch (Exception e) {
                     e.printStackTrace();
                     Logger.i(TAG, "Shouldn't access here");
@@ -576,9 +588,74 @@ public class JPushModule extends ReactContextBaseJavaModule {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
+            } else if (data.getAction().equals("cn.jpush.android.intent.CLEAR_NOTIFICATION")) {
+                try {
+                    vibrator.cancel();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
 
+        private void processCustomNotification(Context context, Bundle bundle, Vibrator vibrator) {
+            // 获取服务器传输的extras值
+            String extras = bundle.getString(JPushInterface.EXTRA_EXTRA);
+            int actionId = 1; //   1-声音 2-震动  3-震动+声音
+            long[] patter = {1000, 2000, 1000, 2000};
+            if(!ExampleUtil.isEmpty(extras)) {
+                try {
+                    JSONObject extrasJson = new JSONObject(extras);
+                    if (null != extrasJson && extrasJson.length() > 0) {
+                        actionId = extrasJson.getInt("action");
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Logger.i(TAG, "Get extras data action failed");
+                }
+            }
+            // 通知管理器
+            NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            // 通知构造器
+            NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(context);
+            notificationBuilder.setAutoCancel(true)
+                .setContentText(bundle.getString(JPushInterface.EXTRA_ALERT))
+                .setContentTitle("预警")
+                .setDefaults(Notification.DEFAULT_LIGHTS)
+                .setSmallIcon(R.mipmap.ic_launcher);
+            
+            // 控制预警形式
+            switch (actionId) {
+                case 1:
+                    notificationBuilder.setDefaults(Notification.DEFAULT_SOUND);
+                    break;
+                case 2:
+                    vibrator.vibrate(patter, 0);
+                    // notificationBuilder.setDefaults(Notification.DEFAULT_VIBRATE);
+                    break;
+                case 3:
+                    vibrator.vibrate(patter, 0);
+                    notificationBuilder.setDefaults(Notification.DEFAULT_SOUND);
+                    // notificationBuilder.setDefaults(Notification.DEFAULT_ALL);
+                    break;
+            }
+            
+            // 设置点击该通知后，发送一条给JPushReceiver的广播
+            Intent mIntent = new Intent(context,JPushReceiver.class);
+            mIntent.putExtras(bundle);
+            mIntent.setAction(JPushInterface.ACTION_NOTIFICATION_OPENED);
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0 ,mIntent, PendingIntent.FLAG_ONE_SHOT);
+            notificationBuilder.setContentIntent(pendingIntent);
+
+            // 相应清除通知事件
+            Intent deleteIntent = new Intent(context, JPushReceiver.class);
+            deleteIntent.setAction("cn.jpush.android.intent.CLEAR_NOTIFICATION");
+            notificationBuilder.setDeleteIntent(PendingIntent.getBroadcast(context, 0, deleteIntent, PendingIntent.FLAG_ONE_SHOT));
+        
+            int id = bundle.getInt(JPushInterface.EXTRA_NOTIFICATION_ID);
+            Notification notification = notificationBuilder.build();
+            notification.flags = Notification.FLAG_INSISTENT;
+            notificationManager.notify(id, notification);
+        }
     }
 
     public static class MyJPushMessageReceiver extends JPushMessageReceiver {
