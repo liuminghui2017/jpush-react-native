@@ -50,7 +50,9 @@ public class JPushModule extends ReactContextBaseJavaModule {
     private static String TAG = "JPushModule";
     private Context mContext;
     private static String mEvent;
+    private static String mCachedEvent = null;
     private static Bundle mCachedBundle;
+    private static Bundle mCacheNotificationBundle = null;
     private static ReactApplicationContext mRAC;
 
     private final static String RECEIVE_NOTIFICATION = "receiveNotification";
@@ -150,6 +152,21 @@ public class JPushModule extends ReactContextBaseJavaModule {
             mRAC = getReactApplicationContext();
             sendEvent();
             callback.invoke(0);
+        }
+    }
+
+    @ReactMethod
+    public void notifyJSDidLoad2(Callback callback) {
+        if (getReactApplicationContext().hasActiveCatalystInstance()) {
+            mRAC = getReactApplicationContext();
+            if (mCachedEvent != null && mCacheNotificationBundle != null) {
+                mEvent = mCachedEvent;
+                mCachedBundle = mCacheNotificationBundle;
+            }
+            sendEvent();
+            callback.invoke(0);
+            mCachedEvent = null;
+            mCacheNotificationBundle = null;
         }
     }
 
@@ -535,6 +552,8 @@ public class JPushModule extends ReactContextBaseJavaModule {
                     }
                     if (isApplicationRunningBackground(context)) {
                         processCustomNotification(context, data.getExtras(), vibrator);
+                        mCacheNotificationBundle = data.getExtras();
+                        mCachedEvent = RECEIVE_NOTIFICATION;
                     }                   
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -548,6 +567,8 @@ public class JPushModule extends ReactContextBaseJavaModule {
                     String extras = mCachedBundle.getString(JPushInterface.EXTRA_EXTRA);
                     Intent intent;
                     if (isApplicationRunningBackground(context)) {
+                        mCacheNotificationBundle = data.getExtras();
+                        mCachedEvent = OPEN_NOTIFICATION;
                         intent = new Intent();
                         intent.setClassName(context.getPackageName(), context.getPackageName() + ".MainActivity");
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -643,10 +664,10 @@ public class JPushModule extends ReactContextBaseJavaModule {
             Intent mIntent = new Intent(context,JPushReceiver.class);
             mIntent.putExtras(bundle);
             mIntent.setAction(JPushInterface.ACTION_NOTIFICATION_OPENED);
-            PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0 ,mIntent, PendingIntent.FLAG_ONE_SHOT);
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0 ,mIntent, PendingIntent.FLAG_CANCEL_CURRENT);
             notificationBuilder.setContentIntent(pendingIntent);
 
-            // 相应清除通知事件
+            // 清除通知事件
             Intent deleteIntent = new Intent(context, JPushReceiver.class);
             deleteIntent.setAction("cn.jpush.android.intent.CLEAR_NOTIFICATION");
             notificationBuilder.setDeleteIntent(PendingIntent.getBroadcast(context, 0, deleteIntent, PendingIntent.FLAG_ONE_SHOT));
