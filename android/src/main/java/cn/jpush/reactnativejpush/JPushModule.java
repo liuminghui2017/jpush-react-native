@@ -621,13 +621,13 @@ public class JPushModule extends ReactContextBaseJavaModule {
         private void processCustomNotification(Context context, Bundle bundle, Vibrator vibrator) {
             // 获取服务器传输的extras值
             String extras = bundle.getString(JPushInterface.EXTRA_EXTRA);
-            int actionId = 1; //   1-声音 2-震动  3-震动+声音
+            int actionId = 0; //   1-声音 2-震动  3-震动+声音
             long[] patter = {1000, 2000, 1000, 2000};
             if(!ExampleUtil.isEmpty(extras)) {
                 try {
                     JSONObject extrasJson = new JSONObject(extras);
                     if (null != extrasJson && extrasJson.length() > 0) {
-                        actionId = extrasJson.getInt("action");
+                        actionId = extrasJson.getInt("warning_tip");
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
