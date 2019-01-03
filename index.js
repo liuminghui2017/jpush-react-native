@@ -26,6 +26,18 @@ export default class JPush {
     JPushModule.stopPush()
   }
 
+
+  /**
+   * 判断是否成功授权推送（或是否在设置中成功开启推送功能）
+   * 
+   * @param {Function} cb
+   */
+  static hasPermission (cb) {
+    JPushModule.hasPermission(res => {
+      cb(res)
+    })
+  }
+
   /**
    * Android Only
    */
@@ -77,10 +89,15 @@ export default class JPush {
   }
 
   /**
-   * Android Only
+   * Android Only.
+   * 删除通知栏指定的推送。
    */
-  static clearNotificationById(id) {
-    JPushModule.clearNotificationById(id)
+  static clearNotificationById (id) {
+    if (Platform.OS == "android") {
+      JPushModule.clearNotificationById(id)
+    } else {
+      console.warn("iOS 没有提供该方法！")
+    }
   }
 
   /**
@@ -249,16 +266,20 @@ export default class JPush {
   /**
    * Android Only
    */
-  static setLatestNotificationNumber(maxNumber) {
-    JPushModule.setLatestNotificationNumber(maxNumber)
+  static setLatestNotificationNumber (maxNumber) {
+    if (Platform.OS == "android") {
+      JPushModule.setLatestNotificationNumber(maxNumber)
+    }
   }
 
   /**
    * Android Only
    * @param {object} config = {"startTime": String, "endTime": String}  // 例如：{startTime: "20:30", endTime: "8:30"}
    */
-  static setSilenceTime(config) {
-    JPushModule.setSilenceTime(config)
+  static setSilenceTime (config) {
+    if (Platform.OS == "android") {
+      JPushModule.setSilenceTime(config)
+    }
   }
 
   /**
@@ -266,8 +287,26 @@ export default class JPush {
    * @param {object} config = {"days": Array, "startHour": Number, "endHour": Number}
    * // 例如：{days: [0, 6], startHour: 8, endHour: 23} 表示星期天和星期六的上午 8 点到晚上 11 点都可以推送
    */
-  static setPushTime(config) {
-    JPushModule.setPushTime(config)
+  static setPushTime (config) {
+    if (Platform.OS == "android") {
+      JPushModule.setPushTime(config)
+    }
+  }
+
+  /**
+   * Android Only
+   */
+  static setGeofenceInterval(interval) {
+    if (Platform.OS == "android") {
+      JPushModule.setGeofenceInterval(interval)
+    }
+  }
+
+  /**
+   * Android Only
+   */
+  static setMaxGeofenceNumber(maxNumber) {
+    JPushModule.setMaxGeofenceNumber(maxNumber)
   }
 
   /**
@@ -622,6 +661,20 @@ export default class JPush {
    */
   static sendLocalNotification(notification) {
     JPushModule.sendLocalNotification(notification)
+  }
+
+  /**
+  * 移除所有的本地通知
+  */
+  static clearLocalNotifications() {
+      JPushModule.clearLocalNotifications()
+  }
+
+  /**
+   * 移除指定未触发的本地通知。
+   */
+  static removeLocalNotification(id) {
+      JPushModule.removeLocalNotification(id)
   }
 
   /**

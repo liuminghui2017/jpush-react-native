@@ -149,6 +149,38 @@ RCT_EXPORT_METHOD(stopPush) {
   [[UIApplication sharedApplication] unregisterForRemoteNotifications];
 }
 
+RCT_EXPORT_METHOD(hasPermission:(RCTResponseSenderBlock)callback) {
+  float systemVersion = [[UIDevice currentDevice].systemVersion floatValue];
+  
+  
+  if (systemVersion >= 8.0) {
+    UIUserNotificationSettings *settings = [[UIApplication sharedApplication] currentUserNotificationSettings];
+    UIUserNotificationType type = settings.types;
+    if (type == UIUserNotificationTypeNone) {
+      callback(@[@(NO)]);
+    } else {
+      callback(@[@(YES)]);
+    }
+    
+  } else if (systemVersion >= 10.0) {
+    [[UNUserNotificationCenter currentNotificationCenter] getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings * _Nonnull settings) {
+      
+      switch (settings.authorizationStatus)
+      {
+        case UNAuthorizationStatusDenied:
+        case UNAuthorizationStatusNotDetermined:
+          callback(@[@(NO)]);
+          break;
+        case UNAuthorizationStatusAuthorized:
+          callback(@[@(YES)]);
+          break;
+      }
+    }];
+  }
+  
+  
+}
+
 RCT_EXPORT_METHOD(getLaunchAppNotification:(RCTResponseSenderBlock)callback) {
   NSDictionary *notification;
   if ([RCTJPushActionQueue sharedInstance].openedRemoteNotification != nil) {
@@ -745,10 +777,12 @@ RCT_EXPORT_METHOD(clearAllLocalNotifications) {
  * - 通过本 API 把当前客户端(当前这个用户的) 的实际 badge 设置到服务器端保存起来;
  * - 调用服务器端 API 发 APNs 时(通常这个调用是批量针对大量用户),
  *   使用 "+1" 的语义, 来表达需要基于目标用户实际的 badge 值(保存的) +1 来下发通知时带上新的 badge 值;
+ *
+ * setBadge(-1): 支持清空icon的badge而不清空通知栏消息
  */
 RCT_EXPORT_METHOD(setBadge:(NSInteger)value callback:(RCTResponseSenderBlock)callback) {// ->Bool
   [[UIApplication sharedApplication] setApplicationIconBadgeNumber:value];
-  NSNumber *badgeNumber = [NSNumber numberWithBool:[JPUSHService setBadge: value]];
+  NSNumber *badgeNumber = [NSNumber numberWithBool:[JPUSHService setBadge: value > 0 ? value : 0]];
   callback(@[badgeNumber]);
 }
 
@@ -783,6 +817,13 @@ RCT_EXPORT_METHOD(getRegistrationID:(RCTResponseSenderBlock)callback) {// -> str
   NSLog(@"simulator can not get registrationid");
   callback(@[@""]);
 #elif TARGET_OS_IPHONE//真机
+    if ([JPUSHService registrationID] != nil && ![[JPUSHService registrationID] isEqualToString:@""]) {
+            // 如果已经成功获取 registrationID，从本地获取直接缓存
+            callback(@[[JPUSHService registrationID]]);
+            return;
+    }
+    
+  //    第一次获取时需要 jpush login 状态
   if (_isJPushDidLogin) {
     callback(@[[JPUSHService registrationID]]);
   } else {
@@ -829,11 +870,16 @@ RCT_EXPORT_METHOD(clearAllNotifications) {
   }
 }
 
-RCT_EXPORT_METHOD(clearNotificationById:(NSInteger)identify) {
+RCT_EXPORT_METHOD(removeLocalNotification:(NSInteger)identify) {
   JPushNotificationIdentifier *pushIdentify = [[JPushNotificationIdentifier alloc] init];
   pushIdentify.identifiers = @[[@(identify) description]];
   [JPUSHService removeNotification: pushIdentify];
 }
+
+RCT_EXPORT_METHOD(clearLocalNotifications) {
+  [JPUSHService removeNotification: nil];
+}
+
 
 - (void)jpushNotificationCenter:(UNUserNotificationCenter *)center willPresentNotification:(UNNotification *)notification withCompletionHandler:(void (^)(NSInteger))completionHandler {
   NSDictionary * userInfo = notification.request.content.userInfo;
